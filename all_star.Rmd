@@ -1,0 +1,776 @@
+---
+title: "ALL STAR"
+output: pdf_document
+date: "March 30th, 2023"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Section A:
+
+
+
+
+```{r}
+range_union <- function(x, y) {
+  c(min(x[1], y[1]), max(x[2], y[2]))
+}
+
+
+
+```
+
+
+
+
+
+```{r Simulating The Most Ideal Case: true linear models!}
+
+
+library(MASS)
+num_trials = 1
+
+
+# y = 2x + e
+betas <- c(0, 2)
+xi_means <- c(1)
+BigSig <- matrix(c(1), nrow=1, ncol=1)
+
+
+
+
+
+# y = 1+2x1- 0.1x2  + e
+
+betas <- c(0, 2, -.1)
+xi_means <- c(1, 1)
+BigSig <- matrix(c(1,0,0,1), nrow=2, ncol=2)
+
+
+# y = 1+2x1- x2  + e 
+# exploring multicolinearity
+
+betas <- c(1, 2, -1)
+xi_means <- c(1, 0)
+r <- 0.99
+BigSig <- matrix(c(1,r,r,1), nrow=2, ncol=2)
+
+
+
+
+# y = 3 +4x1 -3x2 -x3 +4x4 + e
+# 
+# betas <- c(3, 4, -3, -1, 4)
+# xi_means <- c(1, 0, 4, 3)
+# BigSig <- diag(4)
+
+
+sample_sizes = seq(from = 10, to = 100, by = 5)
+
+
+
+X <- mvrnorm(n=100, mu=xi_means, Sigma=BigSig)
+
+pairs(X)
+
+run_simple_simulation <- function(betas,xi_means, num_trials, sample_sizes){
+  
+  
+  p <- length(betas)-1
+  print(p)
+
+  ranges <- list()
+  
+  trial_data <- list()
+  
+  
+  for (j in 1:num_trials){
+    
+    log_pvals <- data.frame(matrix(nrow = 0, ncol = p+1))
+
+    for (nn in sample_sizes){
+      
+     
+      # print(nn)
+      X <- mvrnorm(n=nn, mu=xi_means, Sigma=BigSig)
+      
+      
+      
+      
+      xmat <- cbind(rep(1, nn), X)
+      
+      y <-xmat %*% betas + rnorm(nn, mean=0, sd=sqrt(1))
+      
+      
+     
+     reg <- lm(y ~ X)
+     
+     beta_hat <- reg$coefficients
+     
+  
+     log_beta_pvals <- log(summary(reg)$coefficients[,4])
+     
+     # print(log_beta_pvals)
+     
+     log_pvals <- rbind(log_pvals, log_beta_pvals)
+     
+     
+     
+    }
+    
+  
+    
+    # store the p-values for this trial in the log_pvals_all matrix
+    trial_data[[j]] <- log_pvals
+    ranges[[j]] <- range(log_pvals)
+    
+
+  }
+# all trials complete
+# print(trial_data)
+
+
+# determine the range of values in each column of log_pvals
+yrange <- Reduce(range_union, ranges)
+
+# add some padding to the y-axis limits
+padding <- diff(yrange) * 0.1
+yrange[1] <- yrange[1] - padding
+yrange[2] <- yrange[2] + padding
+
+plot(x= NULL, y = NULL, xlab = "Sample Size", ylab = "Log P-Value", main = "Sample Sizes vs. Log P-Values", ylim = yrange, xlim = range(sample_sizes))
+abline(a = log(.05), b=0, col = "black", lty = 2)
+
+# Find the sum of the matrices
+mat_sum <- Reduce(`+`, trial_data)
+
+# Find the average of the matrices
+mean_log_pvals <- mat_sum / length(trial_data)
+
+
+
+# plot all p-values
+for(trial in 1: num_trials){
+
+  log_pvals <- trial_data[[trial]]
+
+
+  for (i in 1:(p+1)){
+    points(x = sample_sizes, y = log_pvals[,i],col = ifelse(log_pvals[,i] > log(.05), "red", "black"), pch = i-1)
+
+  }
+
+}
+
+legend_text <- paste0("beta ", 0:p) # generate the legend labels dynamically
+legend_pch <- 0:p # generate the legend symbols dynamically
+legend("bottomleft", legend = legend_text, pch = legend_pch, col = "black")
+
+
+
+# plot average pvalues
+
+#   for (i in 1:(p+1)){
+#     points(x = sample_sizes, y = mean_log_pvals[,i],col = ifelse(mean_log_pvals[,i] > log(.05), "red", "black"), pch = i-1)
+#   
+#   }
+#   
+# legend_text <- paste0("beta ", 0:p) # generate the legend labels dynamically
+# legend_pch <- 0:p # generate the legend symbols dynamically
+# legend("topright", legend = legend_text, pch = legend_pch, col = "black")
+
+
+
+return(mean_log_pvals)
+
+
+}
+
+
+run_simple_simulation(betas,xi_means, num_trials, sample_sizes)
+
+
+
+
+
+
+
+
+
+  
+```
+  
+
+
+
+
+
+
+
+# See how multicolinearity in the X1 vs X2 can affect the selected betas and different sample sizes!
+
+```{r}
+# 
+# library(ggplot2)
+# library(gganimate)
+# 
+# 
+# # y = 1+2x1- x2  + e
+# 
+# 
+# betas <- c(1, 2, -1)
+# p <- length(betas)-1
+# 
+# cov_x1x2 = seq(from = 0, to = .999, length.out = 30)
+# 
+# 
+# data_pvals <- data.frame(matrix(nrow = 0, ncol = p+3))
+# 
+# 
+# names(data_pvals) <- c("Sample Size", "r", "beta0p","beta1p", "beta2p" )
+# 
+# 
+# for(r in cov_x1x2){
+#   
+# 
+# xi_means <- c(1, 0)
+# BigSig <- matrix(c(1,r,r,1), nrow=2, ncol=2)
+# 
+# 
+# sample_sizes = seq(from = 5, to = 40, by = 2)
+# num_trials = 5
+# 
+# mean_log_pvals <- unname(run_simple_simulation(betas,xi_means, num_trials, sample_sizes))
+# 
+# 
+# 
+# 
+# # print(dim(mean_log_pvals))
+# # print(length(sample_sizes))
+# 
+# 
+# 
+# 
+# new_data_pvals <- cbind(sample_sizes, rep(r, length(sample_sizes)), mean_log_pvals)
+# 
+# data_pvals <- rbind(data_pvals, new_data_pvals)
+# 
+# 
+# }
+# 
+# 
+# 
+# names(data_pvals) <- c("SampleSize", "rval", "beta0p","beta1p", "beta2p" )
+# 
+# 
+# 
+# 
+# 
+# data_pvals
+# 
+# data_pvals$color0 <- ifelse(data_pvals$beta0p > log(0.05), "red", "blue")
+# data_pvals$color1 <- ifelse(data_pvals$beta1p > log(0.05), "red", "blue")
+# data_pvals$color2 <- ifelse(data_pvals$beta2p > log(0.05), "red", "blue")
+# 
+# 
+# p1 <- ggplot(data_pvals, aes(SampleSize, beta1p, size = 10, color = color1, shape = 1)) +
+#   
+#   
+#              geom_point(alpha = 0.7, show.legend = TRUE) +
+#   
+#              geom_point( aes(SampleSize, beta2p, size = 10, color = color2, shape = 2, alpha = 0.7))+
+#               
+#              geom_point( aes(SampleSize, beta0p, size = 10, color = color0, shape = 3))+
+#               
+#               scale_shape_identity()+
+#   
+#             
+#   
+#             # horizontal line
+#              geom_hline(yintercept = log(.05), linetype = "dashed")+
+#   
+#              scale_color_identity() +
+#   
+#   
+#              # Animating the plot
+#              labs(title = 'Cov(x1, x2): {frame_time}', x = 'Sample Size', y = 'p_value for beta1') +
+#              transition_time(rval) +
+#              ease_aes('linear',interval = 0.0001)
+# 
+# animate(p1,fps=30, nframes = 500)
+# 
+# anim_save("animation.gif", p1)
+# 
+# 
+
+
+
+
+
+
+```
+
+SIMULATED DATA 
+
+Run linear regression on all subsets of regressors and pick the best model 
+based on AICc, BIC, All-Star, and R2adj.
+
+
+```{r}
+
+# run all regression on all subsets
+
+library(leaps)
+
+
+
+get_all_star_regresors <- function(y, X){
+
+  
+  
+  xmat <- cbind(rep(1, length(y)), X)
+
+  
+  npar = length(xmat)-1
+  n = length(y)
+  
+  
+  print(names(X))
+  
+  
+  # Example vector
+  regressors <- names(X)
+  
+  
+  
+  
+  
+  
+  
+  # Print all subsets
+  
+  
+  
+  library(rje)
+  
+  
+  
+  
+  
+  
+  
+  all_subsets <- powerSet(regressors)
+  
+  
+  
+  
+  
+  all_pvalues <- list()
+  all_AIC <- list()
+  all_AICc <- list()
+  all_bic <- list()
+  all_R2adj <- list()
+  
+  # print(length(all_subsets))
+  
+  for( i in 2:length(all_subsets)) {
+    # print(i)
+     X_subset <- as.matrix(X[,all_subsets[[i]]])
+     
+     
+     
+     colnames(X_subset) <- all_subsets[[i]]
+     
+   
+     
+     # print(X_subset)
+  
+     # colnames(X_subset) <- subset
+  
+     # print(X_subset)
+     mod <- lm(y ~ X_subset)
+     
+     
+     
+  
+     # print(summary(mod))
+     
+     # print(summary(mod)$coefficients[,4])
+     
+     
+     all_pvalues  <- append(all_pvalues, list((summary(mod)$coefficients[,4])))
+    
+     
+     
+     
+     
+     aic <- extractAIC(mod,k=2)[2]
+     
+     AICc <- extractAIC(mod,k=2)[2] + 2*npar*(npar+1)/(n-npar-1)
+     
+     bic <- extractAIC(mod,k=log(n))[2]
+     
+     R2Adj <- summary(mod)$adj.r.squared
+
+     
+    
+     
+    
+     
+     
+     all_AIC <- append(all_AIC, aic)
+     all_AICc <- append(all_AICc, AICc)
+     all_bic <- append(all_bic, bic)
+     all_R2adj <- append(all_R2adj, R2Adj)
+     
+     
+     
+     # print(all_models)
+  
+  }
+  # print(all_subsets)
+  # print(all_pvalues)
+  # 
+  
+  
+  
+  best_models_AS <- replicate(npar, c(0), simplify = FALSE)
+  
+  best_model_AIC <-  all_subsets[[1+1]]
+  best_model_AICc <-  all_subsets[[1+1]]
+  best_model_bic <-  all_subsets[[1+1]]
+  best_model_R2adj <-  all_subsets[[1+1]]
+  
+
+  lowest_AIC <- all_AIC[[1]]
+  lowest_AICc <- all_AICc[[1]]
+  lowest_bic <- all_bic[[1]]
+  higihest_R2adj <- all_R2adj[[1]]
+  
+  
+  
+
+  
+  
+  
+  for (i in 1:(length(all_pvalues))){
+    VALID = TRUE
+    # print(i)
+    subset <- all_subsets[[i+1]]
+    # print(subset)
+    pvals<- all_pvalues[[i]]
+    for(pval in pvals){
+      if(pval > 0.05){
+        VALID = FALSE
+      }
+      
+    }
+    
+    # print(length(subset))
+    
+    if(VALID){
+      best_models_AS[[length(subset)]] <- subset
+    }
+    
+    aic <- all_AIC[[i]]
+    AICc <- all_AICc[[i]]
+    bic <- all_bic[[i]]
+    R2adj <- all_R2adj[[i]]
+    
+    
+    
+    
+    
+    if (aic< lowest_AIC){
+      lowest_AIC <- aic
+      best_model_AIC <- subset
+    }
+    
+    
+    # print(AICc)
+    # print(lowest_AICc)
+    
+     if (AICc< lowest_AICc){
+      lowest_AICc <- AICc
+      best_model_AICc <- subset
+     }
+    
+    
+    # print(bic)
+     if (bic< lowest_bic){
+      lowest_bic <- bic
+      best_model_bic <- subset
+     }
+    
+     if (R2adj > higihest_R2adj){
+      higihest_R2adj <- R2adj
+      best_model_R2adj <- subset
+     }
+    
+  
+  
+  }
+  
+  
+
+  
+  
+  # best_model_AS = 0
+  
+  for(model in best_models_AS){
+    # print(model)
+    if (model[1] != 0){
+      best_model_AS = model
+  
+    }
+    
+  }
+  # print("Best Model Chosen By All-Star")
+  
+  
+  
+  
+  
+  
+  return(list(
+    list("All Star Selection", best_model_AS), 
+    list("AIC selection", best_model_AIC), 
+    list("best model AICc", best_model_AICc), 
+    list("BIC selection", best_model_bic), 
+    list("best model R2adj", best_model_R2adj))
+    
+    
+    )
+
+# print(summary(lm(y~X[,1]+X[,2]+X[,4]+X[,5]+X[,3])))
+
+}
+
+
+
+```
+
+
+
+```{r}
+
+# y = 2x + e
+betas <- c(0, 2)
+xi_means <- c(1)
+BigSig <- matrix(c(1), nrow=1, ncol=1)
+
+
+# y = 3+2x1-2x2+epsilon
+
+betas <- c(3, 2, -2)
+xi_means <- c(1, 1)
+BigSig <- diag(2)
+
+# 
+# betas <- c(3, 4, 0, -1, 4)
+# xi_means <- c(1, 0, 4, 3)
+# BigSig <- diag(4)
+
+
+# 
+# 
+# betas <- c(1, 1, 1, 0, 2, 4)
+# xi_means <- c(1, 0, 4, 3, 1)
+# BigSig <- diag(5)
+
+
+
+
+
+betas <- c(0.1, 1, 1, 0, 2, 4)
+xi_means <- c(1, 0, 4, 3, 1)
+BigSig <- diag(5)
+
+
+n_samples = 500
+
+
+X <- mvrnorm(n = n_samples, mu = xi_means, Sigma = BigSig)
+xmat <- cbind(rep(1, length(X[,1])), X)
+y <- as.matrix(xmat %*% betas + rnorm(n_samples, mean=0, sd=sqrt(1)))
+
+pairs(X)
+
+
+X <- data.frame(X)
+names(X) <- c(1:length(X[1,]))
+
+
+
+best_models <- get_all_star_regresors(y,X)
+
+
+all_star_subsets <- best_models[[1]]
+aic_subsets <- best_models[[2]]
+
+print(best_models)
+
+
+
+
+# analyze the all star model
+# 
+# all_star_X <-  as.matrix(X[,all_star_subsets])
+# colnames(all_star_X) <- all_star_subsets
+# all_star_mod <- lm (y ~ all_star_X)
+# print(summary(all_star_mod))
+# 
+
+
+
+
+
+ 
+```
+
+
+
+
+
+
+Comparing model selection performence on real data!
+
+```{r}
+
+
+# load data and split into traning and testing sets
+
+
+
+
+all_mse <- rep(0, 5)
+num_trials <- 1
+for (trial in 1:num_trials){
+
+data(Boston)
+
+
+head(Boston)
+# so that we can check all subsets, we will choose a subset of the regressors
+
+
+
+
+
+y <- as.matrix(Boston[,"medv"])
+
+regressors <- names(Boston)[1:13]
+Boston <- Boston[,regressors]
+
+
+
+
+n = length(y)
+train_prop <- .5
+
+
+train_indices <- sample(1:n, size = round(train_prop * n), replace = FALSE)
+
+
+x.train <- Boston[train_indices, ]
+x.test <- Boston[-train_indices, ]
+
+
+y.train <- y[train_indices, ]
+y.test <- y[-train_indices, ]
+
+# print(length(x.train[,1]))
+# print(length(x.test[,1]))
+# print(length(y.train))
+# print(length(y.test))
+
+
+
+best_models <- get_all_star_regresors(y.train,x.train)
+
+
+
+
+
+
+
+
+
+
+# colnames(x_subset_AS) <- AS_subset
+# 
+# x_subset_AS
+# 
+# AS_mod <- lm(y.train ~ x_subset_AS)
+# 
+# summary(AS_mod)
+print(best_models)
+
+
+testing_errors <- c()
+
+
+
+for(i in 1:5){
+
+  
+  subset <- as.vector(best_models[[i]][[2]])
+
+  x_subset <- as.matrix(x.train[, subset, drop = FALSE])
+  colnames(x_subset) <- subset
+
+  # print(subset)
+  mod <- lm(y.train ~ x_subset, data = data.frame(x_subset))
+  # print(summary(mod)$adj.r.squared)
+  # print(summary(mod))
+
+
+  x_test_subset <- data.frame(as.matrix(x.test[, subset, drop = FALSE]))
+  colnames(x_test_subset) <- subset
+
+  # print(length(x_test_subset[1,]))
+  # 
+  # print(colnames(x_test_subset))
+  y_pred <- predict(mod, newdata = x_test_subset)
+
+ 
+
+  print(sum((y.test - y_pred)^2))
+  testing_errors <- c(testing_errors, sum((y.test - y_pred)^2)/length(y.test))
+}
+
+all_mse <- all_mse + testing_errors
+
+}
+models <- c("All-Star", "AIC", "AICc", "BIC", "R2adj")
+
+
+avg_mse <- all_mse/num_trials
+
+min <- round(min(avg_mse) *0.99)
+avg_mse <- avg_mse  - min
+barplot(avg_mse, names.arg = models, xlab = "", ylab = paste("Average Mean Squared Error minus ", as.character(min)), 
+        col = "steelblue", border = NA, ylim = c(0, max(avg_mse) * 1.2))
+
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
